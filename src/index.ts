@@ -1,98 +1,84 @@
-interface ITexts {
-  [key: string]: string
+export type TemplateData = Record<string, string | number>
+
+export interface RenderOptions {
+  /** Element or document to render. Defaults to `document`. */
+  root?: Element | Document
+  /** Prefix of the container tag, e.g. `app` for `<app-container>`. Defaults to `app`. */
+  prefix?: string
 }
 
-let _elementAttributePrefix: string
-let _templateSelector: string
-let _containerSelector: string
+const PLACEHOLDER = /{{\s*([\w.-]+)\s*}}/g
+const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE'])
+const MAX_CONTAINERS = 10000
 
-class Template extends HTMLElement {
-  constructor() {
-    super()
-    Template.onInit(this)
-  }
-
-  static onInit(template: HTMLElement): void {
-    template.style.display = 'none'
-  }
+/**
+ * Replaces every `{{ key }}` in `text` with `data[key]`.
+ * Unknown keys are replaced with the key name.
+ */
+export function interpolate(text: string, data: TemplateData): string {
+  return text.replace(PLACEHOLDER, (_, key: string) =>
+    Object.hasOwn(data, key) ? String(data[key]) : key
+  )
 }
 
-class Container extends HTMLElement {
-  constructor() {
-    super()
-    Container.onInit(this)
-  }
+/**
+ * Fills `<app-container template="id">` elements with the content of
+ * `<template id="id">` and replaces `{{ key }}` placeholders in text and
+ * attributes with values from `data`.
+ */
+export function render(data: TemplateData, options: RenderOptions = {}): void {
+  const root = options.root ?? document
+  const prefix = options.prefix ?? 'app'
 
-  static onInit(container: HTMLElement): void {
-    const templateOutletValue /*: string */ = container.getAttribute(
-      `${_elementAttributePrefix}TemplateOutlet`
-    )
-    const targetTemplate: HTMLElement = window.document.querySelector(
-      `${_templateSelector}[${templateOutletValue}]`
-    ) as HTMLElement
-    container.innerHTML = targetTemplate.innerHTML
-  }
+  fillContainers(root, `${prefix}-container`)
+  interpolateTree(root, data)
 }
 
-class HtmlLightweightTemplateEngine {
-  private texts: ITexts = {}
+function fillContainers(root: Element | Document, tag: string): void {
+  const doc = root.ownerDocument ?? (root as Document)
+  let container: Element | null
+  let count = 0
 
-  constructor(texts: ITexts, elementAttributePrefix?: string) {
-    this.texts = texts || this.texts
-    _elementAttributePrefix = elementAttributePrefix || 'app'
-
-    _templateSelector = `${_elementAttributePrefix}-template`
-    _containerSelector = `${_elementAttributePrefix}-container`
-  }
-
-  private templateInterpolationUtil(htmlTemplate: string): string {
-    const pattern = new RegExp(
-      `{{\\s*([0-9a-zA-Z]+|[0-9a-zA-Z]+\\s+\\|\\s+[0-9a-zA-Z]+)\\s*}}`,
-      'g'
-    )
-    let alteredHtmlTemplate = ''
-    let currentPosition = 0
-    let match
-
-    while ((match = pattern.exec(htmlTemplate))) {
-      alteredHtmlTemplate += htmlTemplate.slice(currentPosition, match.index)
-      const resourceKey = match[1]
-      let evaluatedExpression = ''
-      evaluatedExpression = this.texts[resourceKey] || resourceKey
-      alteredHtmlTemplate += evaluatedExpression
-      currentPosition = pattern.lastIndex
+  while ((container = root.querySelector(tag)) !== null) {
+    if (++count > MAX_CONTAINERS) {
+      throw new Error(
+        `Too many <${tag}> elements. Does a template include itself?`
+      )
     }
-    alteredHtmlTemplate += htmlTemplate.slice(currentPosition)
 
-    return alteredHtmlTemplate
-  }
+    const id = container.getAttribute('template') ?? ''
+    const template = doc.getElementById(id)
+    if (template?.tagName !== 'TEMPLATE') {
+      throw new Error(`<${tag}> refers to a missing <template id="${id}">`)
+    }
 
-  private runCustomElementsPolyfill(): void {
-    const templates = window.document.querySelectorAll(
-      _templateSelector
-    ) as unknown as HTMLElement[]
-    const containers = window.document.querySelectorAll(
-      _containerSelector
-    ) as unknown as HTMLElement[]
-
-    if (templates) templates.forEach((template) => Template.onInit(template))
-    if (containers)
-      containers.forEach((container) => Container.onInit(container))
-  }
-
-  renderTemplate(): void {
-    window.document.head.innerHTML = this.templateInterpolationUtil(
-      window.document.head.innerHTML
+    container.replaceWith(
+      (template as HTMLTemplateElement).content.cloneNode(true)
     )
-    window.document.body.innerHTML = this.templateInterpolationUtil(
-      window.document.body.innerHTML
-    )
-
-    if (window.customElements && window.customElements.define) {
-      window.customElements.define(_templateSelector, Template)
-      window.customElements.define(_containerSelector, Container)
-    } else this.runCustomElementsPolyfill()
   }
 }
 
-export { HtmlLightweightTemplateEngine }
+function interpolateTree(root: Element | Document, data: TemplateData): void {
+  const walker = (root.ownerDocument ?? (root as Document)).createTreeWalker(
+    root,
+    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+    (node) =>
+      SKIPPED_TAGS.has(node.nodeName)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+  )
+
+  for (
+    let node: Node | null = walker.currentNode;
+    node;
+    node = walker.nextNode()
+  ) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      node.nodeValue = interpolate(node.nodeValue ?? '', data)
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      for (const attr of (node as Element).attributes) {
+        attr.value = interpolate(attr.value, data)
+      }
+    }
+  }
+}
