@@ -1,6 +1,6 @@
 {
   "name": "html-lightweight-template-engine",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Text interpolation and reusable templates for plain HTML pages.",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,7 +25,7 @@
     "format": "prettier --write .",
     "npm-publish": "npm run lint && npm test && npm run build && npm publish"
   },
-  "author": "Dato Marjanidze",
+  "author": "David Marjanidze",
   "license": "ISC",
   "homepage": "https://github.com/davidmarjanidze/html-lightweight-template-engine#readme",
   "repository": {
