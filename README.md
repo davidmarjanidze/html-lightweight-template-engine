@@ -40,7 +40,9 @@ page rendered on its own with a custom prefix, and `interpolate`.
     <title>{{ product.name }} | {{ shopName }}</title>
     <style>
       /* Not touched: {{ product.name }} */
-      .star { color: gold; }
+      .star {
+        color: gold;
+      }
     </style>
   </head>
   <body>
@@ -112,7 +114,10 @@ page rendered on its own with a custom prefix, and `interpolate`.
       // Render the newsletter box first. A render of the whole page would
       // otherwise replace {{ title }} with "title" and leave <ui-container>.
       render(
-        { title: 'Get 10% off your first order', placeholder: 'you@example.com' },
+        {
+          title: 'Get 10% off your first order',
+          placeholder: 'you@example.com'
+        },
         { root: document.getElementById('newsletter'), prefix: 'ui' }
       )
 
@@ -202,36 +207,6 @@ interpolate('Hello, {{ name }}!', { name: 'Mia' }) // 'Hello, Mia!'
 Keys can contain letters, numbers, `_`, `-` and `.`. If a key is missing
 from `data`, the placeholder is replaced with the key itself, so
 `{{ greeting }}` becomes `greeting`.
-
-## Upgrading from 1.x
-
-- The `HtmlLightweightTemplateEngine` class is replaced by `render`:
-
-  ```js
-  // 1.x
-  new HtmlLightweightTemplateEngine(texts, 'app').renderTemplate()
-  // 2.x
-  render(texts, { prefix: 'app' })
-  ```
-
-- Use `<template id="name">` instead of `<app-template name>`, and
-  `<app-container template="name">` instead of
-  `<app-container appTemplateOutlet="name">`.
-- Values are inserted as text instead of HTML.
-- Empty string values render as empty strings instead of the key.
-- The npm package is ESM only. For non-module code use the script tag build.
-
-## Development
-
-```console
-npm install
-npm test
-npm run lint
-npm run build
-```
-
-`npm run npm-publish` runs the checks, builds the package and publishes it to
-npm.
 
 ## License
 
